@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_mobile_app/components/snackbar.dart';
 import 'package:flutter_mobile_app/socket.dart';
 import 'package:battery_plus/battery_plus.dart';
+
+import 'package:flutter_mobile_app/network.dart' as Network;
 
 class Home extends StatefulWidget {
   @override
@@ -26,23 +30,42 @@ class _home extends State<Home> {
   @override
   void initState() {
     super.initState();
-
+    WidgetsFlutterBinding.ensureInitialized();
     _controller = TextEditingController();
+
     socketManager = SocketManager();
+    autoConnect();
 
     _battery.batteryState.then(_updateBatteryState);
     _batteryStateSubscription =
         _battery.onBatteryStateChanged.listen(_updateBatteryState);
   }
 
+  void autoConnect() async {
+    print("Checking wifi status");
+    if (await Network.isDevicePresent()) {
+      print("Wifi is turned on");
+
+      await Future.delayed(const Duration(seconds: 3));
+
+      if (Network.isServerFound()) {
+        String serverAddress = Network.getServerAdress();
+        _controller.text = serverAddress;
+        showSnackBar(context, "Detected server at $serverAddress");
+      }
+    } else {
+      print("Wifi is not turned on");
+    }
+  }
+
   Future<void> checkPercent() async {
     _batteryPercent = await _battery.batteryLevel;
     Timer.periodic(const Duration(minutes: 1), (timer) async {
       if (_batteryState == BatteryState.charging) {
-        var _level = await _battery.batteryLevel;
-        if (_level != _batteryPercent) {
+        var level = await _battery.batteryLevel;
+        if (level != _batteryPercent) {
           setState(() {
-            _batteryPercent = _level;
+            _batteryPercent = level;
           });
           sendData();
         }
@@ -84,6 +107,12 @@ class _home extends State<Home> {
     sendData();
   }
 
+  void disconnect() {
+    if (socketManager.isConnected()) {
+      socketManager.disconnect();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,17 +127,24 @@ class _home extends State<Home> {
             child: Text("Server status: $status"),
           ),
           const SizedBox(height: 10),
-          TextField(
-              controller: _controller,
-              decoration: const InputDecoration(
-                  hintText: "Enter address", border: OutlineInputBorder())),
+          SizedBox(
+            width: 300,
+            child: TextField(
+                controller: _controller,
+                decoration: const InputDecoration(
+                    focusColor: Colors.blue,
+                    hintText: "Enter address",
+                    border: OutlineInputBorder())),
+          ),
           const SizedBox(height: 10),
           GestureDetector(
-            onTap: () => connect(),
+            onTap: () => connected ? disconnect() : connect(),
             child: Container(
               width: 200,
               height: 60,
-              color: Colors.blue,
+              decoration: const BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.all(Radius.circular(15.0))),
               child: Center(
                 child: Text(
                   (connected) ? "Disconnect" : "Connect",

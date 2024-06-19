@@ -28,7 +28,7 @@ class SocketManager {
     socket.disconnect();
   }
 
-  bool isConnected() => socket.connected;
+  bool isConnected() => url != "" && socket.connected;
 
   void sendMsg(String eventName, var msg) {
     socket.emit(eventName, msg);
